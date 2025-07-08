@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import { io } from "socket.io-client";
 import "./tictactoe.css";
 
-export const socket = io('https://backend-gamesproject.onrender.com'); 
+const socket = io('https://backend-gamesproject.onrender.com');
+
 
 const initialBoard = Array(9).fill(null);
 
