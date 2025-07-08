@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { io } from "socket.io-client";
 import "./tictactoe.css";
 
-export const socket = io("https://backend-gamesproject.onrender.com");
+export const socket = io('https://backend-gamesproject.onrender.com'); 
 
 const initialBoard = Array(9).fill(null);
 
@@ -12,6 +12,8 @@ const TicTacToe = () => {
   const [symbol, setSymbol] = useState("X");
   const [isPlayerTurn, setIsPlayerTurn] = useState(true);
   const [winner, setWinner] = useState(null);
+  const [players, setPlayers] = useState({ X: '', O: '' });
+  const [currentTurn, setCurrentTurn] = useState('X');
   const [score, setScore] = useState({ X: 0, O: 0 });
   const [gameStarted, setGameStarted] = useState(false);
   const [message, setMessage] = useState("");
@@ -68,14 +70,18 @@ const TicTacToe = () => {
     });
 
     // Start game event with opponent info
-    socket.on("start", ({ message, opponent }) => {
-      setOpponentName(opponent);
-      setMessage(message);
-      setGameStarted(true);
-      setBoard(initialBoard);
-      setWinner(null);
-      setTurn("X");
+    socket.on("startGame", ({ playerNames, currentTurn, board }) => {
+      console.log("Game started!");
+      console.log("Players:", playerNames);
+      console.log("Current turn:", currentTurn);
+      console.log("Board:", board);
+
+      setPlayers(playerNames);       // <- update player state
+      setCurrentTurn(currentTurn);   // <- update turn
+      setBoard(board);               // <- show board
+      setGameStarted(true);          // <- trigger board rendering
     });
+
 
     // Receive board update & turn change from server
     socket.on("update", ({ board: newBoard, turn: newTurn }) => {
@@ -111,7 +117,7 @@ const TicTacToe = () => {
   // Join multiplayer room
   const joinRoom = () => {
     if (room.trim() && playerName.trim()) {
-      socket.emit("join", { room: room.trim(), name: playerName.trim() });
+      socket.emit("joinRoom", { room: room.trim(), name: playerName.trim() });
     }
   };
 
