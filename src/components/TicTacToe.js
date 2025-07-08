@@ -4,180 +4,271 @@ import "./tictactoe.css";
 
 const socket = io("http://localhost:4000");
 
+const initialBoard = Array(9).fill(null);
+
 const TicTacToe = () => {
-  const [board, setBoard] = useState(Array(9).fill(null));
-  const [isXTurn, setIsXTurn] = useState(true);
-  const [room, setRoom] = useState("");
-  const [gameMode, setGameMode] = useState("multiplayer"); // "multiplayer" or "singleplayer"
-  const [difficulty, setDifficulty] = useState("easy"); // "easy", "medium", "hard"
+  // Game state
+  const [board, setBoard] = useState(initialBoard);
+  const [symbol, setSymbol] = useState("X");
+  const [isPlayerTurn, setIsPlayerTurn] = useState(true);
   const [winner, setWinner] = useState(null);
   const [score, setScore] = useState({ X: 0, O: 0 });
-  const [playerSymbol, setPlayerSymbol] = useState("X"); // For both modes
+  const [gameStarted, setGameStarted] = useState(false);
+  const [message, setMessage] = useState("");
+  const [turn, setTurn] = useState("X");
+  const [gameMode, setGameMode] = useState("singleplayer"); // "singleplayer" or "multiplayer"
+  const [difficulty, setDifficulty] = useState("easy");
+  const [room, setRoom] = useState("");
+  const [playerName, setPlayerName] = useState("");
+  const [opponentName, setOpponentName] = useState("");
 
-  // Join Room
-  const joinRoom = () => {
-    if (room) {
-      socket.emit("joinRoom", room);
-    }
-  };
-
+  // Load score from localStorage on mount
   useEffect(() => {
-    socket.on("assignSymbol", (symbol) => {
-      setPlayerSymbol(symbol); // 'X' or 'O'
-    });
-
-    socket.on("updateGame", (game) => {
-      setBoard(game.board);
-      setIsXTurn(game.isXTurn);
-    });
-
-    return () => {
-      socket.off("assignSymbol");
-      socket.off("updateGame");
-    };
+    const savedScore = localStorage.getItem("tictactoeScore");
+    if (savedScore) setScore(JSON.parse(savedScore));
   }, []);
 
-  const checkWinner = useCallback((board) => {
-    const winningCombos = [
-      [0, 1, 2], [3, 4, 5], [6, 7, 8],
-      [0, 3, 6], [1, 4, 7], [2, 5, 8],
-      [0, 4, 8], [2, 4, 6],
+  // Save score on update
+  useEffect(() => {
+    localStorage.setItem("tictactoeScore", JSON.stringify(score));
+  }, [score]);
+
+  // Check winner or draw
+  const checkWinner = useCallback((b) => {
+    const lines = [
+      [0, 1, 2],
+      [3, 4, 5],
+      [6, 7, 8],
+
+      [0, 3, 6],
+      [1, 4, 7],
+      [2, 5, 8],
+
+      [0, 4, 8],
+      [2, 4, 6],
     ];
-    for (let combo of winningCombos) {
-      const [a, b, c] = combo;
-      if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-        return board[a];
+    for (let [a, b1, c] of lines) {
+      if (b[a] && b[a] === b[b1] && b[a] === b[c]) {
+        return b[a];
       }
     }
-    return board.includes(null) ? null : "draw";
+    if (b.every(Boolean)) return "draw";
+    return null;
   }, []);
 
-  const minimax = (board, isMaximizing, player, opponent) => {
-    const result = checkWinner(board);
-    if (result === player) return 1;
-    if (result === opponent) return -1;
-    if (result === "draw") return 0;
+  // --- Multiplayer socket events setup ---
+  useEffect(() => {
+    if (gameMode !== "multiplayer") return;
 
-    let bestScore = isMaximizing ? -Infinity : Infinity;
-    for (let i = 0; i < 9; i++) {
-      if (board[i] === null) {
-        board[i] = isMaximizing ? player : opponent;
-        let score = minimax(board, !isMaximizing, player, opponent);
-        board[i] = null;
-        bestScore = isMaximizing ? Math.max(score, bestScore) : Math.min(score, bestScore);
-      }
-    }
-    return bestScore;
-  };
+    // On joining room, server sends symbol X or O
+    socket.on("symbol", ({ symbol }) => {
+      setSymbol(symbol);
+      setIsPlayerTurn(symbol === "X"); // X always starts
+      setTurn("X");
+    });
 
-  const findBestMove = (board, player) => {
-    const opponent = player === "O" ? "X" : "O";
-    let bestScore = -Infinity;
-    let bestMove = null;
+    // Start game event with opponent info
+    socket.on("start", ({ message, opponent }) => {
+      setOpponentName(opponent);
+      setMessage(message);
+      setGameStarted(true);
+      setBoard(initialBoard);
+      setWinner(null);
+      setTurn("X");
+    });
 
-    for (let i = 0; i < 9; i++) {
-      if (board[i] === null) {
-        board[i] = player;
-        let score = minimax(board, false, player, opponent);
-        board[i] = null;
-        if (score > bestScore) {
-          bestScore = score;
-          bestMove = i;
-        }
-      }
-    }
-    return bestMove;
-  };
-
-  const handleClick = (index) => {
-    if (board[index] || winner) return;
-
-    const newBoard = [...board];
-    newBoard[index] = isXTurn ? "X" : "O";
-    setBoard(newBoard);
-    setIsXTurn(!isXTurn);
-
-    const result = checkWinner(newBoard);
-    if (result) {
-      setWinner(result);
-      if (result !== "draw") {
-        setScore((prev) => ({ ...prev, [result]: prev[result] + 1 }));
-      }
-    }
-
-    if (gameMode === "multiplayer" && room) {
-      socket.emit("makeMove", { room, index });
-    }
-  };
-
-  const makeAIMove = useCallback(() => {
-    if (winner || isXTurn) return;
-
-    let availableMoves = board.map((val, idx) => (val === null ? idx : null)).filter((val) => val !== null);
-    let aiMove;
-
-    if (difficulty === "hard") {
-      aiMove = findBestMove([...board], "O");
-    } else if (difficulty === "medium") {
-      aiMove = availableMoves.length > 1 ? availableMoves[1] : availableMoves[0];
-    } else {
-      aiMove = availableMoves[Math.floor(Math.random() * availableMoves.length)];
-    }
-
-    if (aiMove !== undefined) {
-      board[aiMove] = "O";
-      setBoard([...board]);
-
-      const result = checkWinner(board);
+    // Receive board update & turn change from server
+    socket.on("update", ({ board: newBoard, turn: newTurn }) => {
+      setBoard(newBoard);
+      setTurn(newTurn);
+      setIsPlayerTurn(newTurn === symbol);
+      const result = checkWinner(newBoard);
       if (result) {
         setWinner(result);
         if (result !== "draw") {
           setScore((prev) => ({ ...prev, [result]: prev[result] + 1 }));
         }
       }
-      setIsXTurn(true);
-    }
-  }, [board, checkWinner, difficulty, winner, isXTurn]);
+    });
 
-  useEffect(() => {
-    if (gameMode === "singleplayer" && !isXTurn && !winner) {
-      setTimeout(makeAIMove, 500);
-    }
-  }, [board, isXTurn, gameMode, winner, makeAIMove]);
+    // Game ended by server
+    socket.on("end", ({ winner: win }) => {
+      setWinner(win);
+      if (win && win !== "draw") {
+        setScore((prev) => ({ ...prev, [win]: prev[win] + 1 }));
+      }
+    });
 
+    // Cleanup listeners on unmount or mode change
+    return () => {
+      socket.off("symbol");
+      socket.off("start");
+      socket.off("update");
+      socket.off("end");
+    };
+  }, [gameMode, symbol, checkWinner]);
+
+  // Join multiplayer room
+  const joinRoom = () => {
+    if (room.trim() && playerName.trim()) {
+      socket.emit("join", { room: room.trim(), name: playerName.trim() });
+    }
+  };
+
+  // Handle user click on a cell
+  const handleClick = (index) => {
+    if (board[index] || winner) return;
+
+    if (gameMode === "singleplayer") {
+      if (!isPlayerTurn) return;
+      const newBoard = [...board];
+      newBoard[index] = "X";
+      setBoard(newBoard);
+      const result = checkWinner(newBoard);
+      if (result) {
+        setWinner(result);
+        if (result !== "draw") {
+          setScore((prev) => ({ ...prev, [result]: prev[result] + 1 }));
+        }
+      } else {
+        setIsPlayerTurn(false);
+        setTurn("O");
+        setTimeout(() => makeAIMove(newBoard), 500);
+      }
+    } else {
+      if (!isPlayerTurn || !gameStarted) return;
+      socket.emit("move", { room, index });
+    }
+  };
+
+  // Minimax Algorithm
+  const minimax = (board, isMax, ai, human) => {
+    const result = checkWinner(board);
+    if (result === ai) return 10;
+    if (result === human) return -10;
+    if (result === "draw") return 0;
+
+    if (isMax) {
+      let bestScore = -Infinity;
+      for (let i = 0; i < 9; i++) {
+        if (!board[i]) {
+          board[i] = ai;
+          let score = minimax(board, false, ai, human);
+          board[i] = null;
+          bestScore = Math.max(score, bestScore);
+        }
+      }
+      return bestScore;
+    } else {
+      let bestScore = Infinity;
+      for (let i = 0; i < 9; i++) {
+        if (!board[i]) {
+          board[i] = human;
+          let score = minimax(board, true, ai, human);
+          board[i] = null;
+          bestScore = Math.min(score, bestScore);
+        }
+      }
+      return bestScore;
+    }
+  };
+
+  // Find best move for AI
+  const findBestMove = (board, ai) => {
+    const human = ai === "O" ? "X" : "O";
+    let bestScore = -Infinity;
+    let move = null;
+    for (let i = 0; i < 9; i++) {
+      if (!board[i]) {
+        board[i] = ai;
+        const score = minimax(board, false, ai, human);
+        board[i] = null;
+        if (score > bestScore) {
+          bestScore = score;
+          move = i;
+        }
+      }
+    }
+    return move;
+  };
+
+  // AI move with difficulty levels
+  const makeAIMove = (currentBoard) => {
+    const ai = "O";
+    const human = "X";
+    const emptyIndices = currentBoard
+      .map((v, i) => (v ? null : i))
+      .filter((v) => v !== null);
+
+    let move;
+    if (difficulty === "hard") {
+      move = findBestMove([...currentBoard], ai);
+    } else if (difficulty === "medium") {
+      // Choose center or corners preferentially
+      const preferredMoves = [4, 0, 2, 6, 8].filter((i) =>
+        emptyIndices.includes(i)
+      );
+      move = preferredMoves.length > 0 ? preferredMoves[0] : emptyIndices[0];
+    } else {
+      // easy: random move
+      move = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
+    }
+
+    if (move !== undefined) {
+      const newBoard = [...currentBoard];
+      newBoard[move] = ai;
+      setBoard(newBoard);
+      const result = checkWinner(newBoard);
+      if (result) {
+        setWinner(result);
+        if (result !== "draw") {
+          setScore((prev) => ({ ...prev, [result]: prev[result] + 1 }));
+        }
+      } else {
+        setIsPlayerTurn(true);
+        setTurn(human);
+      }
+    }
+  };
+
+  // Reset game for both modes
   const resetGame = () => {
-    setBoard(Array(9).fill(null));
-    setIsXTurn(true);
+    setBoard(initialBoard);
     setWinner(null);
+    setTurn("X");
+    if (gameMode === "singleplayer") setIsPlayerTurn(true);
+    else if (gameMode === "multiplayer") socket.emit("reset", room);
   };
 
   return (
     <div className="tic-tac-toe">
-      <h2>Tic-Tac-Toe</h2>
+      <h2>Tic Tac Toe</h2>
 
-      <div className="scoreboard">
-        <h3>Score</h3>
-        <p>X: {score.X} | O: {score.O}</p>
-      </div>
-
-      <div>
+      <div className="mode-select">
         <label>Mode: </label>
         <select
-          onChange={(e) => {
-            const mode = e.target.value;
-            setGameMode(mode);
-            setPlayerSymbol("X"); // Default to X in singleplayer
-          }}
           value={gameMode}
+          onChange={(e) => {
+            setGameMode(e.target.value);
+            resetGame();
+            setGameStarted(false);
+            setMessage("");
+            setOpponentName("");
+            setRoom("");
+            setPlayerName("");
+          }}
         >
-          <option value="multiplayer">Multiplayer</option>
           <option value="singleplayer">Singleplayer</option>
+          <option value="multiplayer">Multiplayer</option>
         </select>
 
         {gameMode === "singleplayer" && (
           <>
             <label>Difficulty: </label>
-            <select onChange={(e) => setDifficulty(e.target.value)} value={difficulty}>
+            <select
+              value={difficulty}
+              onChange={(e) => setDifficulty(e.target.value)}
+            >
               <option value="easy">Easy</option>
               <option value="medium">Medium</option>
               <option value="hard">Hard</option>
@@ -186,35 +277,57 @@ const TicTacToe = () => {
         )}
       </div>
 
-      <div className="board">
-        {board.map((cell, index) => (
-          <div key={index} className="cell" onClick={() => handleClick(index)}>
-            {cell}
-          </div>
-        ))}
-      </div>
-
-      {winner && (
-        <h3>
-          {winner === "draw"
-            ? "It's a draw!"
-            : winner === playerSymbol
-            ? "You win!"
-            : "You lose!"}
-        </h3>
-      )}
-
-      <button onClick={resetGame}>Reset Game</button>
-
-      {gameMode === "multiplayer" && (
-        <>
+      {/* Multiplayer join */}
+      {gameMode === "multiplayer" && !gameStarted && (
+        <div className="join-room">
           <input
             type="text"
-            placeholder="Enter Room ID"
+            placeholder="Your Name"
+            value={playerName}
+            onChange={(e) => setPlayerName(e.target.value)}
+          />
+          <input
+            type="text"
+            placeholder="Room ID"
             value={room}
             onChange={(e) => setRoom(e.target.value)}
           />
-          <button onClick={joinRoom}>Join Room</button>
+          <button onClick={joinRoom} disabled={!room || !playerName}>
+            Join Room
+          </button>
+          <p>{message}</p>
+        </div>
+      )}
+
+      {/* Game Board */}
+      {(gameMode === "singleplayer" || gameStarted) && (
+        <>
+          <div className="status">
+            {winner
+              ? winner === "draw"
+                ? "Game ended in a draw!"
+                : `Winner: ${winner}`
+              : `Turn: ${turn}`}
+          </div>
+          <div className="board">
+            {board.map((cell, i) => (
+              <div
+                key={i}
+                className={`cell ${cell ? "filled" : ""}`}
+                onClick={() => handleClick(i)}
+              >
+                {cell}
+              </div>
+            ))}
+          </div>
+          <button onClick={resetGame}>Reset Game</button>
+          <div className="scoreboard">
+            <p>Score X: {score.X}</p>
+            <p>Score O: {score.O}</p>
+          </div>
+          {gameMode === "multiplayer" && opponentName && (
+            <p>Opponent: {opponentName}</p>
+          )}
         </>
       )}
     </div>
