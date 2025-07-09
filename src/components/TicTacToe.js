@@ -13,8 +13,6 @@ const TicTacToe = () => {
   const [symbol, setSymbol] = useState("X");
   const [isPlayerTurn, setIsPlayerTurn] = useState(true);
   const [winner, setWinner] = useState(null);
-  const [players, setPlayers] = useState({ X: '', O: '' });
-  const [currentTurn, setCurrentTurn] = useState('X');
   const [score, setScore] = useState({ X: 0, O: 0 });
   const [gameStarted, setGameStarted] = useState(false);
   const [message, setMessage] = useState("");
@@ -81,6 +79,7 @@ const TicTacToe = () => {
       setCurrentTurn(currentTurn);   // <- update turn
       setBoard(board);               // <- show board
       setGameStarted(true);          // <- trigger board rendering
+      setOpponentName(Object.values(playerNames).find((n) => n !== playerName));
     });
 
 
@@ -109,7 +108,7 @@ const TicTacToe = () => {
     // Cleanup listeners on unmount or mode change
     return () => {
       socket.off("symbol");
-      socket.off("start");
+      socket.off("startGame");
       socket.off("update");
       socket.off("end");
     };
