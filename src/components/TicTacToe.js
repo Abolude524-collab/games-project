@@ -7,60 +7,93 @@ const initialBoard = Array(9).fill(null);
 
 // Styled Components (same as your version)
 const Container = styled.div`
-  font-family: sans-serif;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   padding: 2rem;
-  max-width: 500px;
+  max-width: 600px;
   margin: auto;
   text-align: center;
+  background-color: #f9f9ff;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 50, 0.1);
 `;
 
 const Board = styled.div`
   display: grid;
-  grid-template-columns: repeat(3, 100px);
-  grid-gap: 5px;
+  grid-template-columns: repeat(3, 110px);
+  grid-gap: 10px;
   justify-content: center;
   margin: 2rem auto;
 `;
 
 const Cell = styled.button`
-  width: 100px;
-  height: 100px;
-  font-size: 2rem;
+  width: 110px;
+  height: 110px;
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: ${(props) => (props.children === "X" ? "#007bff" : "#ffcc00")};
+  background-color: ${(props) => (props.highlight ? "#f0f0f0" : "#ffffff")};
+  border: 3px solid #333;
+  border-radius: 16px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
   cursor: pointer;
-  border: 2px solid #000;
-  background-color: ${(props) => (props.highlight ? "#f0f0f0" : "white")};
-  transition: background-color 0.3s ease;
+  transition: 0.2s ease;
 
   &:hover {
-    background-color: #e0e0ff;
+    background-color: #e6f0ff;
+    transform: scale(1.05);
+  }
+
+  &:active {
+    transform: scale(0.98);
+    background-color: #d6e0ff;
   }
 `;
 
 const Status = styled.p`
-  font-size: 1.2rem;
+  font-size: 1.5rem;
   font-weight: bold;
+  color: #333;
+  margin-top: 1rem;
 `;
 
 const ScoreBoard = styled.div`
-  margin-top: 1rem;
+  margin-top: 1.5rem;
+  font-size: 1.2rem;
+  color: #555;
 `;
 
 const Button = styled.button`
-  margin-top: 1rem;
-  padding: 0.5rem 1rem;
+  margin: 0.5rem;
+  padding: 0.6rem 1.2rem;
   font-size: 1rem;
+  border: none;
+  border-radius: 8px;
+  background-color: #007bff;
+  color: white;
   cursor: pointer;
+  transition: 0.3s ease;
+
+  &:hover {
+    background-color: #0056d6;
+  }
 `;
 
 const Input = styled.input`
   margin: 0.5rem;
-  padding: 0.3rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 1rem;
 `;
 
 const Select = styled.select`
   margin: 0.5rem;
-  padding: 0.3rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 1rem;
 `;
+
 
 const TicTacToe = () => {
   const [board, setBoard] = useState(initialBoard);
