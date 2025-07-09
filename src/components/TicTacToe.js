@@ -22,6 +22,10 @@ const TicTacToe = () => {
   const [room, setRoom] = useState("");
   const [playerName, setPlayerName] = useState("");
   const [opponentName, setOpponentName] = useState("");
+  
+
+  const [players, setPlayers] = useState([]);
+  const [currentTurn, setCurrentTurn] = useState(null);
 
   // Load score from localStorage on mount
   useEffect(() => {
