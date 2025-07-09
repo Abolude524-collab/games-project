@@ -1,9 +1,66 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { io } from "socket.io-client";
-import "./tictactoe.css";
+import { css } from "@emotion/react";
+import styled from "@emotion/styled";
 
 const socket = io("https://backend-gamesproject.onrender.com");
 const initialBoard = Array(9).fill(null);
+
+const Container = styled.div`
+  font-family: sans-serif;
+  padding: 2rem;
+  max-width: 500px;
+  margin: auto;
+  text-align: center;
+`;
+
+const Board = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 100px);
+  grid-gap: 5px;
+  justify-content: center;
+  margin: 2rem auto;
+`;
+
+const Cell = styled.button`
+  width: 100px;
+  height: 100px;
+  font-size: 2rem;
+  cursor: pointer;
+  border: 2px solid #000;
+  background-color: ${(props) => (props.highlight ? "#f0f0f0" : "white")};
+  transition: background-color 0.3s ease;
+
+  &:hover {
+    background-color: #e0e0ff;
+  }
+`;
+
+const Status = styled.p`
+  font-size: 1.2rem;
+  font-weight: bold;
+`;
+
+const ScoreBoard = styled.div`
+  margin-top: 1rem;
+`;
+
+const Button = styled.button`
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  cursor: pointer;
+`;
+
+const Input = styled.input`
+  margin: 0.5rem;
+  padding: 0.3rem;
+`;
+
+const Select = styled.select`
+  margin: 0.5rem;
+  padding: 0.3rem;
+`;
 
 const TicTacToe = () => {
   const [board, setBoard] = useState(initialBoard);
@@ -18,6 +75,9 @@ const TicTacToe = () => {
   const [room, setRoom] = useState("");
   const [playerName, setPlayerName] = useState("");
   const [opponentName, setOpponentName] = useState("");
+  const [rematchRequested, setRematchRequested] = useState(false);
+  const [opponentRematch, setOpponentRematch] = useState(false);
+  const [isExited, setIsExited] = useState(false);
 
   useEffect(() => {
     const savedScore = localStorage.getItem("tictactoeScore");
@@ -76,20 +136,24 @@ const TicTacToe = () => {
       }
     });
 
-    socket.on("end", ({ winner: win }) => {
-      setWinner(win);
-      if (win && win !== "draw") {
-        setScore((prev) => ({ ...prev, [win]: prev[win] + 1 }));
-      }
+    socket.on("rematch", () => {
+      setOpponentRematch(true);
+      if (rematchRequested) resetGame();
+    });
+
+    socket.on("exit", () => {
+      setIsExited(true);
+      setGameStarted(false);
     });
 
     return () => {
       socket.off("symbol");
       socket.off("startGame");
       socket.off("update");
-      socket.off("end");
+      socket.off("rematch");
+      socket.off("exit");
     };
-  }, [gameMode, symbol, checkWinner, playerName]);
+  }, [gameMode, symbol, checkWinner, playerName, rematchRequested]);
 
   const joinRoom = () => {
     if (room.trim() && playerName.trim()) {
@@ -122,167 +186,93 @@ const TicTacToe = () => {
     }
   };
 
-  const minimax = (board, isMax, ai, human) => {
-    const result = checkWinner(board);
-    if (result === ai) return 10;
-    if (result === human) return -10;
-    if (result === "draw") return 0;
-
-    if (isMax) {
-      let bestScore = -Infinity;
-      for (let i = 0; i < 9; i++) {
-        if (!board[i]) {
-          board[i] = ai;
-          let score = minimax(board, false, ai, human);
-          board[i] = null;
-          bestScore = Math.max(score, bestScore);
-        }
-      }
-      return bestScore;
-    } else {
-      let bestScore = Infinity;
-      for (let i = 0; i < 9; i++) {
-        if (!board[i]) {
-          board[i] = human;
-          let score = minimax(board, true, ai, human);
-          board[i] = null;
-          bestScore = Math.min(score, bestScore);
-        }
-      }
-      return bestScore;
-    }
-  };
-
-  const findBestMove = (board, ai) => {
-    const human = ai === "O" ? "X" : "O";
-    let bestScore = -Infinity;
-    let move = null;
-    for (let i = 0; i < 9; i++) {
-      if (!board[i]) {
-        board[i] = ai;
-        const score = minimax(board, false, ai, human);
-        board[i] = null;
-        if (score > bestScore) {
-          bestScore = score;
-          move = i;
-        }
-      }
-    }
-    return move;
-  };
-
-  const makeAIMove = (currentBoard) => {
-    const ai = "O";
-    const human = "X";
-    const emptyIndices = currentBoard.map((v, i) => (v ? null : i)).filter((v) => v !== null);
-
-    let move;
-    if (difficulty === "hard") {
-      move = findBestMove([...currentBoard], ai);
-    } else if (difficulty === "medium") {
-      const preferredMoves = [4, 0, 2, 6, 8].filter((i) => emptyIndices.includes(i));
-      move = preferredMoves.length > 0 ? preferredMoves[0] : emptyIndices[0];
-    } else {
-      move = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
-    }
-
-    if (move !== undefined) {
-      const newBoard = [...currentBoard];
-      newBoard[move] = ai;
-      setBoard(newBoard);
-      const result = checkWinner(newBoard);
-      if (result) {
-        setWinner(result);
-        if (result !== "draw") {
-          setScore((prev) => ({ ...prev, [result]: prev[result] + 1 }));
-        }
-      } else {
-        setIsPlayerTurn(true);
-        setTurn("X");
-      }
-    }
-  };
-
   const resetGame = () => {
     setBoard(initialBoard);
     setWinner(null);
     setTurn("X");
     setIsPlayerTurn(symbol === "X");
+    setRematchRequested(false);
+    setOpponentRematch(false);
+  };
+
+  const requestRematch = () => {
+    setRematchRequested(true);
+    socket.emit("rematch", { room });
+    if (opponentRematch) resetGame();
+  };
+
+  const exitGame = () => {
+    socket.emit("exit", { room });
+    setGameStarted(false);
+    setIsExited(true);
   };
 
   return (
-    <div className="tictactoe-container">
+    <Container>
       <h2>Tic Tac Toe</h2>
-
       <div>
         <label>
           Game Mode:
-          <select value={gameMode} onChange={(e) => setGameMode(e.target.value)}>
+          <Select value={gameMode} onChange={(e) => setGameMode(e.target.value)}>
             <option value="singleplayer">Singleplayer</option>
             <option value="multiplayer">Multiplayer</option>
-          </select>
+          </Select>
         </label>
 
         {gameMode === "singleplayer" && (
           <label>
             Difficulty:
-            <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
+            <Select value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
               <option value="easy">Easy</option>
               <option value="medium">Medium</option>
               <option value="hard">Hard</option>
-            </select>
+            </Select>
           </label>
         )}
 
         {gameMode === "multiplayer" && (
           <>
-            <input
-              type="text"
+            <Input
               placeholder="Enter Room Name"
               value={room}
               onChange={(e) => setRoom(e.target.value)}
             />
-            <input
-              type="text"
+            <Input
               placeholder="Enter Your Name"
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
             />
-            <button onClick={joinRoom}>Join Room</button>
+            <Button onClick={joinRoom}>Join Room</Button>
           </>
         )}
       </div>
 
-      <div className="board">
+      <Board>
         {board.map((cell, index) => (
-          <button
-            key={index}
-            className="cell"
-            onClick={() => handleClick(index)}
-          >
+          <Cell key={index} onClick={() => handleClick(index)}>
             {cell}
-          </button>
+          </Cell>
         ))}
-      </div>
+      </Board>
 
-      <div className="status">
-        {winner ? (
-          winner === "draw" ? (
-            <p>It's a Draw!</p>
-          ) : (
-            <p>{winner} Wins!</p>
-          )
-        ) : (
-          <p>Turn: {turn}</p>
-        )}
-      </div>
+      <Status>
+        {isExited
+          ? "Opponent Left the Game"
+          : winner
+          ? winner === "draw"
+            ? "It's a Draw!"
+            : `${winner} Wins!`
+          : `Turn: ${turn}`}
+      </Status>
 
-      <div className="scoreboard">
+      <ScoreBoard>
         <p>Score - X: {score.X} | O: {score.O}</p>
-      </div>
+      </ScoreBoard>
 
-      <button onClick={resetGame}>Reset Game</button>
-    </div>
+      {winner && <Button onClick={requestRematch}>Request Rematch</Button>}
+      {gameStarted && <Button onClick={exitGame}>Exit</Button>}
+      <Button onClick={resetGame}>Reset Game</Button>
+    </Container>
   );
 };
 
