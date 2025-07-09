@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { io } from "socket.io-client";
-import { css } from "@emotion/react";
 import styled from "@emotion/styled";
 
 const socket = io("https://backend-gamesproject.onrender.com");
 const initialBoard = Array(9).fill(null);
 
+// Styled Components (same as your version)
 const Container = styled.div`
   font-family: sans-serif;
   padding: 2rem;
@@ -90,23 +90,17 @@ const TicTacToe = () => {
 
   const checkWinner = useCallback((b) => {
     const lines = [
-      [0, 1, 2],
-      [3, 4, 5],
-      [6, 7, 8],
-      [0, 3, 6],
-      [1, 4, 7],
-      [2, 5, 8],
-      [0, 4, 8],
-      [2, 4, 6],
+      [0, 1, 2], [3, 4, 5], [6, 7, 8],
+      [0, 3, 6], [1, 4, 7], [2, 5, 8],
+      [0, 4, 8], [2, 4, 6],
     ];
     for (let [a, b1, c] of lines) {
-      if (b[a] && b[a] === b[b1] && b[a] === b[c]) {
-        return b[a];
-      }
+      if (b[a] && b[a] === b[b1] && b[a] === b[c]) return b[a];
     }
-    if (b.every(Boolean)) return "draw";
-    return null;
+    return b.every(Boolean) ? "draw" : null;
   }, []);
+
+  const getWinner = (b) => checkWinner(b); // used in AI functions
 
   useEffect(() => {
     if (gameMode !== "multiplayer") return;
@@ -186,6 +180,88 @@ const TicTacToe = () => {
     }
   };
 
+  const makeAIMove = (currentBoard) => {
+    let move;
+    if (difficulty === "hard") {
+      move = getBestMove(currentBoard, "O");
+    } else {
+      const empty = currentBoard.map((v, i) => v === null ? i : null).filter(i => i !== null);
+      move = empty[Math.floor(Math.random() * empty.length)];
+    }
+
+    if (move !== null) {
+      const newBoard = [...currentBoard];
+      newBoard[move] = "O";
+      setBoard(newBoard);
+      const result = checkWinner(newBoard);
+      if (result) {
+        setWinner(result);
+        if (result !== "draw") {
+          setScore((prev) => ({ ...prev, [result]: prev[result] + 1 }));
+        }
+      } else {
+        setIsPlayerTurn(true);
+        setTurn("X");
+      }
+    }
+  };
+  
+  const findForkMove = (board, player) => {
+  const emptyIndices = board.map((val, i) => val === null ? i : null).filter(i => i !== null);
+  for (let i of emptyIndices) {
+    const newBoard = [...board];
+    newBoard[i] = player;
+    let winningPaths = 0;
+    const lines = [
+      [0,1,2],[3,4,5],[6,7,8],
+      [0,3,6],[1,4,7],[2,5,8],
+      [0,4,8],[2,4,6]
+    ];
+    for (let [a, b, c] of lines) {
+      const line = [newBoard[a], newBoard[b], newBoard[c]];
+      if (line.filter(val => val === player).length === 2 && line.includes(null)) {
+        winningPaths++;
+      }
+    }
+    if (winningPaths >= 2) return i;
+  }
+  return null;
+};
+
+const getBestMove = (board, aiPlayer) => {
+  const humanPlayer = aiPlayer === "X" ? "O" : "X";
+  const emptyIndices = board.map((val, i) => val === null ? i : null).filter(i => i !== null);
+
+  for (let i of emptyIndices) {
+    const newBoard = [...board];
+    newBoard[i] = aiPlayer;
+    if (getWinner(newBoard) === aiPlayer) return i;
+  }
+
+  for (let i of emptyIndices) {
+    const newBoard = [...board];
+    newBoard[i] = humanPlayer;
+    if (getWinner(newBoard) === humanPlayer) return i;
+  }
+
+  const forkMove = findForkMove(board, aiPlayer);
+  if (forkMove !== null) return forkMove;
+
+  const oppFork = findForkMove(board, humanPlayer);
+  if (oppFork !== null) return oppFork;
+
+  if (board[4] === null) return 4;
+
+  const corners = [0, 2, 6, 8].filter(i => board[i] === null);
+  if (corners.length > 0) return corners[Math.floor(Math.random() * corners.length)];
+
+  const sides = [1, 3, 5, 7].filter(i => board[i] === null);
+  if (sides.length > 0) return sides[Math.floor(Math.random() * sides.length)];
+
+  return null;
+};
+
+
   const resetGame = () => {
     setBoard(initialBoard);
     setWinner(null);
@@ -232,16 +308,8 @@ const TicTacToe = () => {
 
         {gameMode === "multiplayer" && (
           <>
-            <Input
-              placeholder="Enter Room Name"
-              value={room}
-              onChange={(e) => setRoom(e.target.value)}
-            />
-            <Input
-              placeholder="Enter Your Name"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-            />
+            <Input placeholder="Enter Room Name" value={room} onChange={(e) => setRoom(e.target.value)} />
+            <Input placeholder="Enter Your Name" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
             <Button onClick={joinRoom}>Join Room</Button>
           </>
         )}
@@ -249,9 +317,7 @@ const TicTacToe = () => {
 
       <Board>
         {board.map((cell, index) => (
-          <Cell key={index} onClick={() => handleClick(index)}>
-            {cell}
-          </Cell>
+          <Cell key={index} onClick={() => handleClick(index)}>{cell}</Cell>
         ))}
       </Board>
 
