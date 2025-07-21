@@ -1,120 +1,178 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { Chess } from "chess.js";
 import "./chess.css";
 
-const BOARD_SIZE = 8;
-
-// Initial Chess Board Setup
-const initializeBoard = () => {
-  const board = Array(BOARD_SIZE)
-    .fill(null)
-    .map(() => Array(BOARD_SIZE).fill(null));
-
-  const setupRow = (row, color) => {
-    board[row] = [
-      { type: "rook", color },
-      { type: "knight", color },
-      { type: "bishop", color },
-      { type: "queen", color },
-      { type: "king", color },
-      { type: "bishop", color },
-      { type: "knight", color },
-      { type: "rook", color },
-    ];
+const getPieceIcon = (type, color) => {
+  const icons = {
+    k: { w: "♔", b: "♚" },
+    q: { w: "♕", b: "♛" },
+    r: { w: "♖", b: "♜" },
+    b: { w: "♗", b: "♝" },
+    n: { w: "♘", b: "♞" },
+    p: { w: "♙", b: "♟︎" },
   };
+  return icons[type][color];
+};
 
-  setupRow(0, "black");
-  setupRow(7, "white");
+const squareId = (row, col) => `${"abcdefgh"[col]}${8 - row}`;
 
-  // Pawns
-  for (let col = 0; col < BOARD_SIZE; col++) {
-    board[1][col] = { type: "pawn", color: "black" };
-    board[6][col] = { type: "pawn", color: "white" };
+const materialScore = {
+  p: 1,
+  n: 3,
+  b: 3,
+  r: 5,
+  q: 9,
+  k: 0,
+};
+
+const evaluateBoard = (game) => {
+  let score = 0;
+  const board = game.board();
+  for (let row of board) {
+    for (let piece of row) {
+      if (piece) {
+        const value = materialScore[piece.type];
+        score += piece.color === "b" ? value : -value;
+      }
+    }
   }
-
-  return board;
+  return score;
 };
 
 const ChessBoard = () => {
-  const [board, setBoard] = useState(initializeBoard());
-  const [selectedPiece, setSelectedPiece] = useState(null);
+  const [game, setGame] = useState(new Chess());
+  const [board, setBoard] = useState(game.board());
+  const [selected, setSelected] = useState(null);
+  const [legalMoves, setLegalMoves] = useState([]);
+  const [message, setMessage] = useState("");
+  const [difficulty, setDifficulty] = useState("medium"); // "easy", "medium", "hard"
 
-  // Function to check if a move is valid
-  const isValidMove = (startRow, startCol, endRow, endCol, piece) => {
-    if (!piece) return false; // No piece selected
-    if (board[endRow][endCol] && board[endRow][endCol].color === piece.color) return false; // Cannot capture own piece
+  const currentTurn = game.turn() === "w" ? "white" : "black";
 
-    const rowDiff = Math.abs(endRow - startRow);
-    const colDiff = Math.abs(endCol - startCol);
+  useEffect(() => {
+    setBoard(game.board());
+    checkGameStatus();
 
-    switch (piece.type) {
-      case "pawn":
-        if (piece.color === "white") {
-          if (startRow === 6 && endRow === 4 && startCol === endCol && !board[5][endCol] && !board[4][endCol]) return true; // 2 steps first move
-          if (endRow === startRow - 1 && startCol === endCol && !board[endRow][endCol]) return true; // 1 step forward
-          if (endRow === startRow - 1 && colDiff === 1 && board[endRow][endCol] && board[endRow][endCol].color !== piece.color) return true; // Capture diagonally
-        } else {
-          if (startRow === 1 && endRow === 3 && startCol === endCol && !board[2][endCol] && !board[3][endCol]) return true; // 2 steps first move
-          if (endRow === startRow + 1 && startCol === endCol && !board[endRow][endCol]) return true; // 1 step forward
-          if (endRow === startRow + 1 && colDiff === 1 && board[endRow][endCol] && board[endRow][endCol].color !== piece.color) return true; // Capture diagonally
-        }
-        return false;
+    if (game.turn() === "b" && !game.isGameOver()) {
+      setTimeout(makeAIMove, 400);
+    }
+  }, [game]);
 
-      case "rook":
-        return startRow === endRow || startCol === endCol; // Moves in straight lines
-
-      case "bishop":
-        return rowDiff === colDiff; // Moves diagonally
-
-      case "queen":
-        return startRow === endRow || startCol === endCol || rowDiff === colDiff; // Rook + Bishop movement
-
-      case "king":
-        return rowDiff <= 1 && colDiff <= 1; // Moves one square in any direction
-
-      case "knight":
-        return (rowDiff === 2 && colDiff === 1) || (rowDiff === 1 && colDiff === 2); // L-shaped moves
-
-      default:
-        return false;
+  const checkGameStatus = () => {
+    if (game.isCheckmate()) {
+      setMessage(`${currentTurn === "white" ? "Black" : "White"} wins by checkmate!`);
+    } else if (game.isDraw()) {
+      setMessage("Game drawn.");
+    } else if (game.isStalemate()) {
+      setMessage("Stalemate!");
+    } else if (game.isThreefoldRepetition()) {
+      setMessage("Draw by threefold repetition.");
+    } else if (game.isInsufficientMaterial()) {
+      setMessage("Draw by insufficient material.");
+    } else {
+      setMessage("");
     }
   };
 
   const handleSquareClick = (row, col) => {
-    if (selectedPiece) {
-      const [prevRow, prevCol] = selectedPiece;
-      const piece = board[prevRow][prevCol];
+    if (game.turn() !== "w" || game.isGameOver()) return;
 
-      if (isValidMove(prevRow, prevCol, row, col, piece)) {
-        const newBoard = board.map((r) => [...r]);
-        newBoard[prevRow][prevCol] = null; // Remove piece from old position
-        newBoard[row][col] = piece; // Place piece in new position
+    const square = squareId(row, col);
+    const piece = game.get(square);
 
-        setBoard(newBoard);
-        setSelectedPiece(null);
+    if (selected) {
+      const move = game.move({ from: selected, to: square, promotion: "q" });
+      if (move) {
+        setSelected(null);
+        setLegalMoves([]);
+        setGame(new Chess(game.fen()));
+        return;
       }
-    } else if (board[row][col]) {
-      setSelectedPiece([row, col]);
+      setSelected(null);
+      setLegalMoves([]);
+    } else if (piece && piece.color === "w") {
+      setSelected(square);
+      const moves = game.moves({ square, verbose: true });
+      setLegalMoves(moves.map((m) => m.to));
+    }
+  };
+
+  const makeAIMove = () => {
+    if (game.isGameOver()) return;
+
+    const moves = game.moves({ verbose: true }).filter((m) => m.color === "b");
+
+    let bestMove;
+    if (difficulty === "easy") {
+      bestMove = moves[Math.floor(Math.random() * moves.length)];
+    } else if (difficulty === "medium") {
+      // Prefer captures
+      const captures = moves.filter((m) => m.captured);
+      bestMove = captures.length > 0
+        ? captures[Math.floor(Math.random() * captures.length)]
+        : moves[Math.floor(Math.random() * moves.length)];
+    } else if (difficulty === "hard") {
+      // Evaluate board after each move and pick best score
+      let bestScore = -Infinity;
+      for (let move of moves) {
+        const copy = new Chess(game.fen());
+        copy.move(move.san);
+        const score = evaluateBoard(copy);
+        if (score > bestScore) {
+          bestScore = score;
+          bestMove = move;
+        }
+      }
+    }
+
+    if (bestMove) {
+      game.move(bestMove.san);
+      setGame(new Chess(game.fen()));
     }
   };
 
   return (
     <div>
-      <h2 className="title">Chess Game</h2>
+      <h2 className="title">Chess vs AI - {currentTurn}'s Turn</h2>
+      <div className="difficulty-select">
+        Difficulty:{" "}
+        <select
+          value={difficulty}
+          onChange={(e) => setDifficulty(e.target.value)}
+        >
+          <option value="easy">Easy</option>
+          <option value="medium">Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </div>
+
+      {message && <div className="game-message">{message}</div>}
+
       <div className="chess-board">
         {board.map((row, rowIndex) =>
-          row.map((cell, colIndex) => (
-            <div
-              key={`${rowIndex}-${colIndex}`}
-              className={`chess-square ${(rowIndex + colIndex) % 2 === 0 ? "light" : "dark"}`}
-              onClick={() => handleSquareClick(rowIndex, colIndex)}
-            >
-              {cell && (
-                <div className={`chess-piece ${cell.color}-${cell.type}`}>
-                  {cell.type[0].toUpperCase()}
-                </div>
-              )}
-            </div>
-          ))
+          row.map((cell, colIndex) => {
+            const id = squareId(rowIndex, colIndex);
+            const isSelected = selected === id;
+            const isLegalMove = legalMoves.includes(id);
+
+            return (
+              <div
+                key={`${rowIndex}-${colIndex}`}
+                className={`chess-square ${
+                  (rowIndex + colIndex) % 2 === 0 ? "light" : "dark"
+                } ${isSelected ? "selected" : ""} ${
+                  isLegalMove ? "highlight" : ""
+                }`}
+                onClick={() => handleSquareClick(rowIndex, colIndex)}
+              >
+                {cell && (
+                  <div className="chess-piece">
+                    {getPieceIcon(cell.type, cell.color)}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
     </div>

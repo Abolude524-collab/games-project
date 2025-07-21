@@ -3,48 +3,88 @@
   flex-direction: column;
   align-items: center;
   margin-top: 20px;
+  padding: 10px;
+  font-family: Arial, sans-serif;
 }
 
 .draughts-board {
   display: grid;
-  grid-template-columns: repeat(8, 60px);
-  grid-template-rows: repeat(8, 60px);
-  width: 480px;
-  height: 480px;
-  border: 5px solid black;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  width: 90vw;
+  max-width: 480px;
+  aspect-ratio: 1;
+  border: 5px solid #222;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  background-color: #333;
+  position: relative;
 }
 
 .square {
-  width: 60px;
-  height: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 
 .dark {
-  background-color: brown;
+  background-color: #8B4513;
 }
 
 .light {
-  background-color: beige;
+  background-color: #f5f5dc;
+}
+
+.selected {
+  outline: 3px solid #00f;
 }
 
 .piece {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  border: 2px solid black;
-}
-
-.red-piece {
-  background-color: red;
-}
-
-.black-piece {
-  background-color: black;
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
 }
 
 .options {
   margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.scoreboard {
+  margin: 10px 0;
+  font-weight: bold;
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.game-over {
+  color: red;
+  font-size: 20px;
+  margin: 10px;
+}
+
+button {
+  padding: 6px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+  background-color: #444;
+  color: white;
+  border-radius: 4px;
+  transition: background-color 0.3s;
+}
+
+button:hover {
+  background-color: #666;
+}
+
+select {
+  padding: 5px;
+  font-size: 14px;
 }

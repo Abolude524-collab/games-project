@@ -1,35 +1,99 @@
+/* Container */
+.game-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+}
+
+/* Title */
+.title {
+  font-size: 1.8rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+/* Dropdown */
+.difficulty-select {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+/* Status Message */
+.game-message {
+  margin-bottom: 1rem;
+  font-weight: bold;
+  font-size: 1.2rem;
+  color: #c0392b;
+  text-align: center;
+}
+
+/* Board Styling */
 .chess-board {
-    display: grid;
-    grid-template-columns: repeat(8, 75px);
-    grid-template-rows: repeat(8, 75px);
-    width: 600px;
-    height: 600px;
-    border: 4px solid black;
-    margin: auto;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  aspect-ratio: 1 / 1;
+  width: 90vw;
+  max-width: 600px;
+  border: 4px solid #333;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+/* Individual Square */
+.chess-square {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  cursor: pointer;
+  font-size: clamp(20px, 6vw, 48px);
+  transition: background-color 0.2s;
+}
+
+/* Colors */
+.light {
+  background-color: #f0d9b5;
+}
+
+.dark {
+  background-color: #b58863;
+}
+
+.selected {
+  outline: 3px solid yellow;
+}
+
+.highlight {
+  background-color: #90ee90 !important;
+}
+
+/* Piece Styling */
+.chess-piece {
+  font-weight: bold;
+  cursor: grab;
+  transition: transform 0.3s ease-in-out;
+}
+
+.chess-piece:active {
+  cursor: grabbing;
+}
+
+.chess-piece.animated {
+  animation: pop 0.3s ease-out;
+}
+
+/* Pop Animation */
+@keyframes pop {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.5;
   }
-  
-  .chess-square {
-    width: 75px;
-    height: 75px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  100% {
+    transform: scale(1);
+    opacity: 1;
   }
-  
-  .light-square {
-    background-color: #f0d9b5;
-  }
-  
-  .dark-square {
-    background-color: #b58863;
-  }
-  
-  .chess-piece {
-    font-size: 50px;
-    cursor: grab;
-  }
-  
-  .chess-piece:active {
-    cursor: grabbing;
-  }
-  
+}

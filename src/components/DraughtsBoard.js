@@ -1,18 +1,24 @@
 import React, { useState, useEffect, useCallback } from "react";
+import clickSoundFile from "../sounds/click.mp3";
+import moveSoundFile from "../sounds/move.mp3";
+import redPiece from "../images/red.png";
+import whitePiece from "../images/white.png";
+import redKing from "../images/red-king.png";
+import whiteKing from "../images/white-king.png";
 import "./draughtsboard.css";
 
 const BOARD_SIZE = 8;
 
 const initializeBoard = () => {
-  let board = Array(BOARD_SIZE)
+  const board = Array(BOARD_SIZE)
     .fill(null)
     .map(() => Array(BOARD_SIZE).fill(null));
 
   for (let row = 0; row < BOARD_SIZE; row++) {
     for (let col = 0; col < BOARD_SIZE; col++) {
       if ((row + col) % 2 === 1) {
-        if (row < 3) board[row][col] = "black";
-        else if (row > 4) board[row][col] = "red";
+        if (row < 3) board[row][col] = { color: "black", king: false };
+        else if (row > 4) board[row][col] = { color: "red", king: false };
       }
     }
   }
@@ -24,112 +30,213 @@ const DraughtsBoard = () => {
   const [selectedPiece, setSelectedPiece] = useState(null);
   const [isAIsTurn, setIsAIsTurn] = useState(false);
   const [difficulty, setDifficulty] = useState("easy");
+  const [gameOver, setGameOver] = useState(false);
+  const [score, setScore] = useState({ red: 12, black: 12 });
 
-  const isValidMove = (prevRow, prevCol, row, col) => {
-    const piece = board[prevRow][prevCol];
-    if (!piece || board[row][col]) return false;
+  const clickSound = new Audio(clickSoundFile);
+  const moveSound = new Audio(moveSoundFile);
 
-    const rowDiff = row - prevRow;
-    const colDiff = Math.abs(col - prevCol);
+  const difficultyWeights = {
+    easy: 0,
+    medium: 0.25,
+    hard: 0.5,
+    insane: 1,
+  };
 
-    if ((piece === "red" && rowDiff === -1) || (piece === "black" && rowDiff === 1)) {
-      return colDiff === 1 && !board[row][col];
+  const isValidMove = (fromRow, fromCol, toRow, toCol) => {
+    const piece = board[fromRow][fromCol];
+    if (!piece || board[toRow][toCol]) return false;
+
+    const direction = piece.king ? [1, -1] : [piece.color === "red" ? -1 : 1];
+    const rowDiff = toRow - fromRow;
+    const colDiff = toCol - fromCol;
+
+    if (Math.abs(rowDiff) === 1 && Math.abs(colDiff) === 1 && direction.includes(rowDiff)) {
+      return true;
     }
 
-    if (colDiff === 2 && Math.abs(rowDiff) === 2) {
-      const midRow = (prevRow + row) / 2;
-      const midCol = (prevCol + col) / 2;
-      if (board[midRow][midCol] && board[midRow][midCol] !== piece) {
-        return true;
-      }
+    if (Math.abs(rowDiff) === 2 && Math.abs(colDiff) === 2) {
+      const midRow = (fromRow + toRow) / 2;
+      const midCol = (fromCol + toCol) / 2;
+      const middle = board[midRow][midCol];
+      if (middle && middle.color !== piece.color) return true;
     }
+
     return false;
   };
 
-  const makeMove = (prevRow, prevCol, row, col) => {
-    setBoard(prevBoard => {
-      const newBoard = JSON.parse(JSON.stringify(prevBoard));
-      newBoard[row][col] = newBoard[prevRow][prevCol];
-      newBoard[prevRow][prevCol] = null;
+  const getAllMoves = useCallback((boardState, color) => {
+    const moves = [];
+    for (let row = 0; row < BOARD_SIZE; row++) {
+      for (let col = 0; col < BOARD_SIZE; col++) {
+        const piece = boardState[row][col];
+        if (piece?.color === color) {
+          const directions = piece.king ? [1, -1] : [color === "red" ? -1 : 1];
+          directions.forEach((dr) => {
+            [-1, 1].forEach((dc) => {
+              const newRow = row + dr;
+              const newCol = col + dc;
+              const jumpRow = row + dr * 2;
+              const jumpCol = col + dc * 2;
 
-      if (Math.abs(row - prevRow) === 2) {
-        const midRow = (prevRow + row) / 2;
-        const midCol = (prevCol + col) / 2;
-        newBoard[midRow][midCol] = null;
+              if (
+                newRow >= 0 && newRow < BOARD_SIZE &&
+                newCol >= 0 && newCol < BOARD_SIZE &&
+                !boardState[newRow][newCol] &&
+                isValidMove(row, col, newRow, newCol)
+              ) {
+                moves.push({ from: [row, col], to: [newRow, newCol] });
+              }
+
+              if (
+                jumpRow >= 0 && jumpRow < BOARD_SIZE &&
+                jumpCol >= 0 && jumpCol < BOARD_SIZE &&
+                !boardState[jumpRow][jumpCol] &&
+                isValidMove(row, col, jumpRow, jumpCol)
+              ) {
+                moves.push({ from: [row, col], to: [jumpRow, jumpCol] });
+              }
+            });
+          });
+        }
       }
+    }
+    return moves;
+  }, [board]);
 
-      return newBoard;
+  const applyMove = (fromRow, fromCol, toRow, toCol, currentBoard) => {
+    const newBoard = JSON.parse(JSON.stringify(currentBoard));
+    const piece = newBoard[fromRow][fromCol];
+    if (!piece) return { board: newBoard, nextTurn: true };
+
+    newBoard[toRow][toCol] = { ...piece };
+    newBoard[fromRow][fromCol] = null;
+    moveSound.play();
+
+    if (Math.abs(toRow - fromRow) === 2) {
+      const midRow = (fromRow + toRow) / 2;
+      const midCol = (fromCol + toCol) / 2;
+      const captured = newBoard[midRow][midCol];
+      if (captured) {
+        setScore((prev) => ({ ...prev, [captured.color]: prev[captured.color] - 1 }));
+      }
+      newBoard[midRow][midCol] = null;
+
+      const nextJumps = getAllMoves(newBoard, piece.color).filter(
+        (m) => m.from[0] === toRow && m.from[1] === toCol && Math.abs(m.to[0] - m.from[0]) === 2
+      );
+      if (nextJumps.length > 0) return { board: newBoard, nextTurn: false };
+    }
+
+    if ((piece.color === "red" && toRow === 0) || (piece.color === "black" && toRow === 7)) {
+      newBoard[toRow][toCol].king = true;
+    }
+
+    return { board: newBoard, nextTurn: true };
+  };
+
+  const makeMove = (prevRow, prevCol, row, col) => {
+    setBoard((prevBoard) => {
+      const result = applyMove(prevRow, prevCol, row, col, prevBoard);
+      if (result.nextTurn) setTimeout(() => setIsAIsTurn(true), 500);
+      return result.board;
     });
-
-    setTimeout(() => setIsAIsTurn(true), 500);
   };
 
   const handleSquareClick = (row, col) => {
-    if (isAIsTurn) return;
+    if (isAIsTurn || gameOver) return;
+    clickSound.play();
     if (selectedPiece) {
       const [prevRow, prevCol] = selectedPiece;
       if (isValidMove(prevRow, prevCol, row, col)) {
         makeMove(prevRow, prevCol, row, col);
         setSelectedPiece(null);
+      } else {
+        setSelectedPiece(null);
       }
-    } else if (board[row][col] === "red") {
+    } else if (board[row][col]?.color === "red") {
       setSelectedPiece([row, col]);
     }
   };
 
   const makeAIMove = useCallback(() => {
-    setBoard(prevBoard => {
-      const moves = [];
-      for (let row = 0; row < BOARD_SIZE; row++) {
-        for (let col = 0; col < BOARD_SIZE; col++) {
-          if (prevBoard[row][col] === "black") {
-            [[row + 1, col - 1], [row + 1, col + 1]].forEach(([newRow, newCol]) => {
-              if (newRow < BOARD_SIZE && newCol >= 0 && newCol < BOARD_SIZE && !prevBoard[newRow][newCol]) {
-                moves.push({ from: [row, col], to: [newRow, newCol] });
-              }
-            });
-          }
-        }
+    setBoard((prevBoard) => {
+      const moves = getAllMoves(prevBoard, "black");
+      if (moves.length === 0) {
+        setGameOver(true);
+        return prevBoard;
       }
 
-      if (moves.length > 0) {
-        const move = moves[Math.floor(Math.random() * moves.length)];
-        const newBoard = JSON.parse(JSON.stringify(prevBoard));
-        newBoard[move.to[0]][move.to[1]] = "black";
-        newBoard[move.from[0]][move.from[1]] = null;
-        return newBoard;
-      }
+      const weightedMoves = moves.map((m) => {
+        const isCapture = Math.abs(m.to[0] - m.from[0]) === 2;
+        const weight = isCapture ? 1 : difficultyWeights[difficulty];
+        return { ...m, weight };
+      });
 
-      return prevBoard;
+      weightedMoves.sort((a, b) => b.weight - a.weight);
+      const bestMove = weightedMoves[0];
+
+      const result = applyMove(bestMove.from[0], bestMove.from[1], bestMove.to[0], bestMove.to[1], prevBoard);
+      return result.board;
     });
     setIsAIsTurn(false);
-  }, []);
+  }, [getAllMoves, difficulty]);
 
   useEffect(() => {
-    if (isAIsTurn) {
-      setTimeout(makeAIMove, difficulty === "hard" ? 500 : 1000);
+    if (isAIsTurn && !gameOver) {
+      setTimeout(makeAIMove, 400);
     }
-  }, [isAIsTurn, difficulty, makeAIMove]);
+  }, [isAIsTurn, makeAIMove, gameOver]);
+
+  const restartGame = () => {
+    setBoard(initializeBoard());
+    setSelectedPiece(null);
+    setIsAIsTurn(false);
+    setGameOver(false);
+    setScore({ red: 12, black: 12 });
+  };
 
   return (
     <div className="game-container">
       <h2>Draughts Game</h2>
+      {gameOver && <h3 className="game-over">Game Over!</h3>}
+      <div className="scoreboard">
+        <span>Red: {score.red}</span>
+        <span>Black: {score.black}</span>
+      </div>
       <div className="options">
         <label>Select Difficulty: </label>
-        <select onChange={(e) => setDifficulty(e.target.value)} value={difficulty}>
+        <select
+          onChange={(e) => setDifficulty(e.target.value)}
+          value={difficulty}
+        >
           <option value="easy">Easy</option>
+          <option value="medium">Medium</option>
           <option value="hard">Hard</option>
+          <option value="insane">Insane</option>
         </select>
+        <button onClick={restartGame}>Restart 🔄</button>
       </div>
       <div className="draughts-board">
         {board.map((row, rowIndex) =>
           row.map((cell, colIndex) => (
             <div
               key={`${rowIndex}-${colIndex}`}
-              className={`square ${((rowIndex + colIndex) % 2 === 0) ? "light" : "dark"}`}
+              className={`square ${(rowIndex + colIndex) % 2 === 0 ? "light" : "dark"} ${
+                selectedPiece?.[0] === rowIndex &&
+                selectedPiece?.[1] === colIndex
+                  ? "selected"
+                  : ""
+              }`}
               onClick={() => handleSquareClick(rowIndex, colIndex)}
             >
-              {cell && <div className={`piece ${cell === "red" ? "red-piece" : "black-piece"}`}></div>}
+              {cell && (
+                <img
+                  src={cell.king ? (cell.color === "red" ? redKing : whiteKing) : cell.color === "red" ? redPiece : whitePiece}
+                  alt={cell.king ? "King" : cell.color}
+                  className={`piece ${cell.king ? "king" : ""}`}
+                />
+              )}
             </div>
           ))
         )}
