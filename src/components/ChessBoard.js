@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Chess } from "chess.js";
+import confetti from "canvas-confetti"; // 🎉 added
 import "./chess.css";
 
 const getPieceIcon = (type, color) => {
@@ -77,6 +78,14 @@ const ChessBoard = () => {
       const winSide = currentTurn === "white" ? "Black" : "White";
       setMessage(`${winSide} wins by checkmate!`);
       setWinner(winSide === "White" ? "player" : "ai");
+
+      if (winSide === "White") {
+        confetti({
+          particleCount: 150,
+          spread: 70,
+          origin: { y: 0.6 },
+        });
+      }
     } else if (game.isDraw()) {
       setMessage("Game drawn.");
     } else if (game.isStalemate()) {

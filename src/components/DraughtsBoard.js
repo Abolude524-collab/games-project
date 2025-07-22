@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import confetti from "canvas-confetti"; // 🎉 Added
 import clickSoundFile from "../sounds/click.mp3";
 import moveSoundFile from "../sounds/move.mp3";
 import redPiece from "../images/red.png";
@@ -124,7 +125,17 @@ const DraughtsBoard = () => {
           const updated = { ...prev, [captured.color]: prev[captured.color] - 1 };
           if (updated[captured.color] === 0) {
             setGameOver(true);
-            setWinner(captured.color === "red" ? "Black" : "Red");
+            const winningSide = captured.color === "red" ? "Black" : "Red";
+            setWinner(winningSide);
+
+            // 🎉 Trigger confetti if Red wins (player)
+            if (winningSide === "Red") {
+              confetti({
+                particleCount: 150,
+                spread: 70,
+                origin: { y: 0.6 },
+              });
+            }
           }
           return updated;
         });
@@ -175,6 +186,14 @@ const DraughtsBoard = () => {
       if (moves.length === 0) {
         setGameOver(true);
         setWinner("Red");
+
+        // 🎉 Red wins by blocking — trigger confetti
+        confetti({
+          particleCount: 150,
+          spread: 70,
+          origin: { y: 0.6 },
+        });
+
         return prevBoard;
       }
 
