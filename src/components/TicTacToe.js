@@ -1,3 +1,4 @@
+// File: TicTacToe.js
 import React, { useState, useEffect, useCallback } from "react";
 import { io } from "socket.io-client";
 import styled from "@emotion/styled";
@@ -6,6 +7,7 @@ import confetti from "canvas-confetti";
 const socket = io("https://backend-gamesproject.onrender.com");
 const initialBoard = Array(9).fill(null);
 
+// Styled Components
 const Container = styled.div`
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   padding: 2rem;
@@ -53,7 +55,6 @@ const Status = styled.p`
   font-size: 1.5rem;
   font-weight: bold;
   color: #333;
-  margin-top: 1rem;
 `;
 
 const ScoreBoard = styled.div`
@@ -111,23 +112,6 @@ const TicTacToe = () => {
   const [opponentRematch, setOpponentRematch] = useState(false);
   const [isExited, setIsExited] = useState(false);
 
-  useEffect(() => {
-    const savedScore = localStorage.getItem("tictactoeScore");
-    if (savedScore) setScore(JSON.parse(savedScore));
-  }, []);
-
-  useEffect(() => {
-    if (winner && winner !== "draw") {
-      if (gameMode === "multiplayer" || (gameMode === "singleplayer" && winner === "X")) {
-        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-      }
-    }
-  }, [winner, gameMode]);
-
-  useEffect(() => {
-    localStorage.setItem("tictactoeScore", JSON.stringify(score));
-  }, [score]);
-
   const checkWinner = useCallback((b) => {
     const lines = [
       [0, 1, 2], [3, 4, 5], [6, 7, 8],
@@ -140,7 +124,83 @@ const TicTacToe = () => {
     return b.every(Boolean) ? "draw" : null;
   }, []);
 
-  const getWinner = (b) => checkWinner(b);
+  const getBestMove = (board, player) => {
+    const opponent = player === "X" ? "O" : "X";
+
+    const minimax = (newBoard, depth, isMaximizing) => {
+      const result = checkWinner(newBoard);
+      if (result === player) return 10 - depth;
+      if (result === opponent) return depth - 10;
+      if (result === "draw") return 0;
+
+      const scores = [];
+      for (let i = 0; i < newBoard.length; i++) {
+        if (!newBoard[i]) {
+          newBoard[i] = isMaximizing ? player : opponent;
+          const score = minimax(newBoard, depth + 1, !isMaximizing);
+          scores.push(score);
+          newBoard[i] = null;
+        }
+      }
+      return isMaximizing ? Math.max(...scores) : Math.min(...scores);
+    };
+
+    let bestScore = -Infinity;
+    let bestMove = null;
+    for (let i = 0; i < board.length; i++) {
+      if (!board[i]) {
+        board[i] = player;
+        const score = minimax(board, 0, false);
+        board[i] = null;
+        if (score > bestScore) {
+          bestScore = score;
+          bestMove = i;
+        }
+      }
+    }
+    return bestMove;
+  };
+
+  const makeAIMove = (currentBoard) => {
+    let move;
+    if (difficulty === "hard") {
+      move = getBestMove(currentBoard, "O");
+    } else {
+      const empty = currentBoard.map((v, i) => v === null ? i : null).filter(i => i !== null);
+      move = empty[Math.floor(Math.random() * empty.length)];
+    }
+
+    if (move !== null) {
+      const newBoard = [...currentBoard];
+      newBoard[move] = "O";
+      setBoard(newBoard);
+      const result = checkWinner(newBoard);
+      if (result) {
+        setWinner(result);
+        if (result !== "draw") {
+          setScore((prev) => ({ ...prev, [result]: prev[result] + 1 }));
+        }
+      } else {
+        setIsPlayerTurn(true);
+        setTurn("X");
+      }
+    }
+  };
+
+  useEffect(() => {
+    const savedScore = localStorage.getItem("tictactoeScore");
+    if (savedScore) setScore(JSON.parse(savedScore));
+  }, []);
+
+  useEffect(() => {
+    if (winner && winner !== "draw") {
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+    }
+  }, [winner]);
+
+  useEffect(() => {
+    localStorage.setItem("tictactoeScore", JSON.stringify(score));
+  }, [score]);
 
   useEffect(() => {
     if (gameMode !== "multiplayer") return;
@@ -220,32 +280,6 @@ const TicTacToe = () => {
     }
   };
 
-  const makeAIMove = (currentBoard) => {
-    let move;
-    if (difficulty === "hard") {
-      move = getBestMove(currentBoard, "O");
-    } else {
-      const empty = currentBoard.map((v, i) => v === null ? i : null).filter(i => i !== null);
-      move = empty[Math.floor(Math.random() * empty.length)];
-    }
-
-    if (move !== null) {
-      const newBoard = [...currentBoard];
-      newBoard[move] = "O";
-      setBoard(newBoard);
-      const result = checkWinner(newBoard);
-      if (result) {
-        setWinner(result);
-        if (result !== "draw") {
-          setScore((prev) => ({ ...prev, [result]: prev[result] + 1 }));
-        }
-      } else {
-        setIsPlayerTurn(true);
-        setTurn("X");
-      }
-    }
-  };
-
   const resetGame = () => {
     setBoard(initialBoard);
     setWinner(null);
@@ -278,6 +312,7 @@ const TicTacToe = () => {
   return (
     <Container>
       <h2>Tic Tac Toe</h2>
+
       <div>
         <label>
           Game Mode:
@@ -292,7 +327,6 @@ const TicTacToe = () => {
             Difficulty:
             <Select value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
               <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
               <option value="hard">Hard</option>
             </Select>
           </label>
@@ -317,13 +351,7 @@ const TicTacToe = () => {
         {isExited
           ? "Opponent Left the Game"
           : winner
-          ? winner === "draw"
-            ? "It's a Draw!"
-            : gameMode === "singleplayer"
-            ? winner === "X"
-              ? "You Win!"
-              : "You Lose!"
-            : `${winner} Wins!`
+          ? renderWinnerMessage()
           : `Turn: ${turn}`}
       </Status>
 
@@ -332,16 +360,12 @@ const TicTacToe = () => {
       </ScoreBoard>
 
       {winner && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <h3>{renderWinnerMessage()}</h3>
-            {gameMode === "multiplayer" && <Button onClick={requestRematch}>Request Rematch</Button>}
-            <Button onClick={resetGame}>Play Again</Button>
-          </div>
+        <div>
+          {gameMode === "multiplayer" && <Button onClick={requestRematch}>Request Rematch</Button>}
+          <Button onClick={resetGame}>Play Again</Button>
         </div>
       )}
 
-      {gameMode === "multiplayer" && winner && <Button onClick={requestRematch}>Request Rematch</Button>}
       {gameStarted && <Button onClick={exitGame}>Exit</Button>}
       <Button onClick={resetGame}>Reset Game</Button>
     </Container>
