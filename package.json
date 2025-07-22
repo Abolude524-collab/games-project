@@ -12,6 +12,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^13.5.0",
+    "canvas-confetti": "^1.9.3",
     "chess.js": "^1.4.0",
     "cors": "^2.8.5",
     "express": "^4.21.2",

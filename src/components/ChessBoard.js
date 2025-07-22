@@ -45,7 +45,8 @@ const ChessBoard = () => {
   const [selected, setSelected] = useState(null);
   const [legalMoves, setLegalMoves] = useState([]);
   const [message, setMessage] = useState("");
-  const [difficulty, setDifficulty] = useState("medium"); // "easy", "medium", "hard"
+  const [difficulty, setDifficulty] = useState("medium");
+  const [winner, setWinner] = useState(null);
 
   const currentTurn = game.turn() === "w" ? "white" : "black";
 
@@ -58,9 +59,24 @@ const ChessBoard = () => {
     }
   }, [game]);
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      const boardElement = document.querySelector(".chess-board");
+      if (boardElement && !boardElement.contains(e.target)) {
+        setSelected(null);
+        setLegalMoves([]);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const checkGameStatus = () => {
     if (game.isCheckmate()) {
-      setMessage(`${currentTurn === "white" ? "Black" : "White"} wins by checkmate!`);
+      const winSide = currentTurn === "white" ? "Black" : "White";
+      setMessage(`${winSide} wins by checkmate!`);
+      setWinner(winSide === "White" ? "player" : "ai");
     } else if (game.isDraw()) {
       setMessage("Game drawn.");
     } else if (game.isStalemate()) {
@@ -72,6 +88,16 @@ const ChessBoard = () => {
     } else {
       setMessage("");
     }
+  };
+
+  const restartGame = () => {
+    const newGame = new Chess();
+    setGame(newGame);
+    setBoard(newGame.board());
+    setSelected(null);
+    setLegalMoves([]);
+    setMessage("");
+    setWinner(null);
   };
 
   const handleSquareClick = (row, col) => {
@@ -86,10 +112,19 @@ const ChessBoard = () => {
         setSelected(null);
         setLegalMoves([]);
         setGame(new Chess(game.fen()));
-        return;
+      } else {
+        if (selected === square) {
+          setSelected(null);
+          setLegalMoves([]);
+        } else if (piece && piece.color === "w") {
+          setSelected(square);
+          const moves = game.moves({ square, verbose: true });
+          setLegalMoves(moves.map((m) => m.to));
+        } else {
+          setSelected(null);
+          setLegalMoves([]);
+        }
       }
-      setSelected(null);
-      setLegalMoves([]);
     } else if (piece && piece.color === "w") {
       setSelected(square);
       const moves = game.moves({ square, verbose: true });
@@ -106,13 +141,11 @@ const ChessBoard = () => {
     if (difficulty === "easy") {
       bestMove = moves[Math.floor(Math.random() * moves.length)];
     } else if (difficulty === "medium") {
-      // Prefer captures
       const captures = moves.filter((m) => m.captured);
       bestMove = captures.length > 0
         ? captures[Math.floor(Math.random() * captures.length)]
         : moves[Math.floor(Math.random() * moves.length)];
     } else if (difficulty === "hard") {
-      // Evaluate board after each move and pick best score
       let bestScore = -Infinity;
       for (let move of moves) {
         const copy = new Chess(game.fen());
@@ -132,14 +165,12 @@ const ChessBoard = () => {
   };
 
   return (
-    <div>
+    <div className="game-container">
       <h2 className="title">Chess vs AI - {currentTurn}'s Turn</h2>
+
       <div className="difficulty-select">
-        Difficulty:{" "}
-        <select
-          value={difficulty}
-          onChange={(e) => setDifficulty(e.target.value)}
-        >
+        <label>Difficulty:</label>
+        <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
           <option value="easy">Easy</option>
           <option value="medium">Medium</option>
           <option value="hard">Hard</option>
@@ -158,11 +189,9 @@ const ChessBoard = () => {
             return (
               <div
                 key={`${rowIndex}-${colIndex}`}
-                className={`chess-square ${
-                  (rowIndex + colIndex) % 2 === 0 ? "light" : "dark"
-                } ${isSelected ? "selected" : ""} ${
-                  isLegalMove ? "highlight" : ""
-                }`}
+                className={`chess-square ${(rowIndex + colIndex) % 2 === 0 ? "light" : "dark"} ${
+                  isSelected ? "selected" : ""
+                } ${isLegalMove ? "highlight" : ""}`}
                 onClick={() => handleSquareClick(rowIndex, colIndex)}
               >
                 {cell && (
@@ -175,6 +204,15 @@ const ChessBoard = () => {
           })
         )}
       </div>
+
+      {winner && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h3>{winner === "player" ? "You Win 🎉" : "You Lose 😞"}</h3>
+            <button onClick={restartGame}>Play Again</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

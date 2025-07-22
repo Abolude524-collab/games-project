@@ -7,18 +7,19 @@ import redKing from "../images/red-king.png";
 import whiteKing from "../images/white-king.png";
 import "./draughtsboard.css";
 
-const BOARD_SIZE = 8;
+const BOARD_ROWS = 12;
+const BOARD_COLS = 10;
 
 const initializeBoard = () => {
-  const board = Array(BOARD_SIZE)
+  const board = Array(BOARD_ROWS)
     .fill(null)
-    .map(() => Array(BOARD_SIZE).fill(null));
+    .map(() => Array(BOARD_COLS).fill(null));
 
-  for (let row = 0; row < BOARD_SIZE; row++) {
-    for (let col = 0; col < BOARD_SIZE; col++) {
+  for (let row = 0; row < BOARD_ROWS; row++) {
+    for (let col = 0; col < BOARD_COLS; col++) {
       if ((row + col) % 2 === 1) {
-        if (row < 3) board[row][col] = { color: "black", king: false };
-        else if (row > 4) board[row][col] = { color: "red", king: false };
+        if (row < 4) board[row][col] = { color: "black", king: false };
+        else if (row > 7) board[row][col] = { color: "red", king: false };
       }
     }
   }
@@ -31,7 +32,8 @@ const DraughtsBoard = () => {
   const [isAIsTurn, setIsAIsTurn] = useState(false);
   const [difficulty, setDifficulty] = useState("easy");
   const [gameOver, setGameOver] = useState(false);
-  const [score, setScore] = useState({ red: 12, black: 12 });
+  const [winner, setWinner] = useState(null);
+  const [score, setScore] = useState({ red: 20, black: 20 });
 
   const clickSound = new Audio(clickSoundFile);
   const moveSound = new Audio(moveSoundFile);
@@ -45,7 +47,7 @@ const DraughtsBoard = () => {
 
   const isValidMove = (fromRow, fromCol, toRow, toCol) => {
     const piece = board[fromRow][fromCol];
-    if (!piece || board[toRow][toCol]) return false;
+    if (!piece || board[toRow]?.[toCol]) return false;
 
     const direction = piece.king ? [1, -1] : [piece.color === "red" ? -1 : 1];
     const rowDiff = toRow - fromRow;
@@ -67,8 +69,8 @@ const DraughtsBoard = () => {
 
   const getAllMoves = useCallback((boardState, color) => {
     const moves = [];
-    for (let row = 0; row < BOARD_SIZE; row++) {
-      for (let col = 0; col < BOARD_SIZE; col++) {
+    for (let row = 0; row < BOARD_ROWS; row++) {
+      for (let col = 0; col < BOARD_COLS; col++) {
         const piece = boardState[row][col];
         if (piece?.color === color) {
           const directions = piece.king ? [1, -1] : [color === "red" ? -1 : 1];
@@ -80,8 +82,8 @@ const DraughtsBoard = () => {
               const jumpCol = col + dc * 2;
 
               if (
-                newRow >= 0 && newRow < BOARD_SIZE &&
-                newCol >= 0 && newCol < BOARD_SIZE &&
+                newRow >= 0 && newRow < BOARD_ROWS &&
+                newCol >= 0 && newCol < BOARD_COLS &&
                 !boardState[newRow][newCol] &&
                 isValidMove(row, col, newRow, newCol)
               ) {
@@ -89,8 +91,8 @@ const DraughtsBoard = () => {
               }
 
               if (
-                jumpRow >= 0 && jumpRow < BOARD_SIZE &&
-                jumpCol >= 0 && jumpCol < BOARD_SIZE &&
+                jumpRow >= 0 && jumpRow < BOARD_ROWS &&
+                jumpCol >= 0 && jumpCol < BOARD_COLS &&
                 !boardState[jumpRow][jumpCol] &&
                 isValidMove(row, col, jumpRow, jumpCol)
               ) {
@@ -118,7 +120,14 @@ const DraughtsBoard = () => {
       const midCol = (fromCol + toCol) / 2;
       const captured = newBoard[midRow][midCol];
       if (captured) {
-        setScore((prev) => ({ ...prev, [captured.color]: prev[captured.color] - 1 }));
+        setScore((prev) => {
+          const updated = { ...prev, [captured.color]: prev[captured.color] - 1 };
+          if (updated[captured.color] === 0) {
+            setGameOver(true);
+            setWinner(captured.color === "red" ? "Black" : "Red");
+          }
+          return updated;
+        });
       }
       newBoard[midRow][midCol] = null;
 
@@ -128,7 +137,8 @@ const DraughtsBoard = () => {
       if (nextJumps.length > 0) return { board: newBoard, nextTurn: false };
     }
 
-    if ((piece.color === "red" && toRow === 0) || (piece.color === "black" && toRow === 7)) {
+    const promotionRow = piece.color === "red" ? 0 : BOARD_ROWS - 1;
+    if (toRow === promotionRow) {
       newBoard[toRow][toCol].king = true;
     }
 
@@ -164,6 +174,7 @@ const DraughtsBoard = () => {
       const moves = getAllMoves(prevBoard, "black");
       if (moves.length === 0) {
         setGameOver(true);
+        setWinner("Red");
         return prevBoard;
       }
 
@@ -193,23 +204,28 @@ const DraughtsBoard = () => {
     setSelectedPiece(null);
     setIsAIsTurn(false);
     setGameOver(false);
-    setScore({ red: 12, black: 12 });
+    setScore({ red: 20, black: 20 });
+    setWinner(null);
   };
 
   return (
     <div className="game-container">
       <h2>Draughts Game</h2>
-      {gameOver && <h3 className="game-over">Game Over!</h3>}
+      {gameOver && winner && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h3>{winner === "Red" ? "You Win! 🎉" : "You Lose 😞"}</h3>
+            <button onClick={restartGame}>Play Again</button>
+          </div>
+        </div>
+      )}
       <div className="scoreboard">
         <span>Red: {score.red}</span>
         <span>Black: {score.black}</span>
       </div>
       <div className="options">
         <label>Select Difficulty: </label>
-        <select
-          onChange={(e) => setDifficulty(e.target.value)}
-          value={difficulty}
-        >
+        <select onChange={(e) => setDifficulty(e.target.value)} value={difficulty}>
           <option value="easy">Easy</option>
           <option value="medium">Medium</option>
           <option value="hard">Hard</option>
@@ -223,8 +239,7 @@ const DraughtsBoard = () => {
             <div
               key={`${rowIndex}-${colIndex}`}
               className={`square ${(rowIndex + colIndex) % 2 === 0 ? "light" : "dark"} ${
-                selectedPiece?.[0] === rowIndex &&
-                selectedPiece?.[1] === colIndex
+                selectedPiece?.[0] === rowIndex && selectedPiece?.[1] === colIndex
                   ? "selected"
                   : ""
               }`}

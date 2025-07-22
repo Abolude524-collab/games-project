@@ -2,22 +2,24 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: 20px;
-  padding: 10px;
+  padding: 1rem;
   font-family: Arial, sans-serif;
+  min-height: 100vh;
+  box-sizing: border-box;
+  background: #f0f0f0;
 }
 
 .draughts-board {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  grid-template-rows: repeat(8, 1fr);
-  width: 90vw;
-  max-width: 480px;
-  aspect-ratio: 1;
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: repeat(12, 1fr);
+  width: min(90vw, 90vh);
+  aspect-ratio: 10 / 12;
   border: 5px solid #222;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   background-color: #333;
   position: relative;
+  margin-top: 1rem;
 }
 
 .square {
@@ -63,12 +65,65 @@
   font-size: 18px;
 }
 
-.game-over {
-  color: red;
-  font-size: 20px;
-  margin: 10px;
+/* MODAL STYLING */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
 }
 
+.modal {
+  background: white;
+  padding: 30px 40px;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  max-width: 300px;
+  width: 80%;
+  animation: popin 0.3s ease-out;
+}
+
+.modal h3 {
+  font-size: 24px;
+  margin-bottom: 20px;
+  color: #222;
+}
+
+.modal button {
+  padding: 10px 16px;
+  font-size: 16px;
+  background-color: #1e3a8a;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.modal button:hover {
+  background-color: #2c4dab;
+}
+
+@keyframes popin {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* General button and select styles */
 button {
   padding: 6px 12px;
   font-size: 14px;

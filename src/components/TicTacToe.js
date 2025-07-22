@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { io } from "socket.io-client";
 import styled from "@emotion/styled";
+import confetti from "canvas-confetti";
 
 const socket = io("https://backend-gamesproject.onrender.com");
 const initialBoard = Array(9).fill(null);
 
-// Styled Components (same as your version)
 const Container = styled.div`
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   padding: 2rem;
@@ -94,7 +94,6 @@ const Select = styled.select`
   font-size: 1rem;
 `;
 
-
 const TicTacToe = () => {
   const [board, setBoard] = useState(initialBoard);
   const [symbol, setSymbol] = useState("X");
@@ -118,6 +117,14 @@ const TicTacToe = () => {
   }, []);
 
   useEffect(() => {
+    if (winner && winner !== "draw") {
+      if (gameMode === "multiplayer" || (gameMode === "singleplayer" && winner === "X")) {
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      }
+    }
+  }, [winner, gameMode]);
+
+  useEffect(() => {
     localStorage.setItem("tictactoeScore", JSON.stringify(score));
   }, [score]);
 
@@ -133,7 +140,7 @@ const TicTacToe = () => {
     return b.every(Boolean) ? "draw" : null;
   }, []);
 
-  const getWinner = (b) => checkWinner(b); // used in AI functions
+  const getWinner = (b) => checkWinner(b);
 
   useEffect(() => {
     if (gameMode !== "multiplayer") return;
@@ -238,62 +245,6 @@ const TicTacToe = () => {
       }
     }
   };
-  
-  const findForkMove = (board, player) => {
-  const emptyIndices = board.map((val, i) => val === null ? i : null).filter(i => i !== null);
-  for (let i of emptyIndices) {
-    const newBoard = [...board];
-    newBoard[i] = player;
-    let winningPaths = 0;
-    const lines = [
-      [0,1,2],[3,4,5],[6,7,8],
-      [0,3,6],[1,4,7],[2,5,8],
-      [0,4,8],[2,4,6]
-    ];
-    for (let [a, b, c] of lines) {
-      const line = [newBoard[a], newBoard[b], newBoard[c]];
-      if (line.filter(val => val === player).length === 2 && line.includes(null)) {
-        winningPaths++;
-      }
-    }
-    if (winningPaths >= 2) return i;
-  }
-  return null;
-};
-
-const getBestMove = (board, aiPlayer) => {
-  const humanPlayer = aiPlayer === "X" ? "O" : "X";
-  const emptyIndices = board.map((val, i) => val === null ? i : null).filter(i => i !== null);
-
-  for (let i of emptyIndices) {
-    const newBoard = [...board];
-    newBoard[i] = aiPlayer;
-    if (getWinner(newBoard) === aiPlayer) return i;
-  }
-
-  for (let i of emptyIndices) {
-    const newBoard = [...board];
-    newBoard[i] = humanPlayer;
-    if (getWinner(newBoard) === humanPlayer) return i;
-  }
-
-  const forkMove = findForkMove(board, aiPlayer);
-  if (forkMove !== null) return forkMove;
-
-  const oppFork = findForkMove(board, humanPlayer);
-  if (oppFork !== null) return oppFork;
-
-  if (board[4] === null) return 4;
-
-  const corners = [0, 2, 6, 8].filter(i => board[i] === null);
-  if (corners.length > 0) return corners[Math.floor(Math.random() * corners.length)];
-
-  const sides = [1, 3, 5, 7].filter(i => board[i] === null);
-  if (sides.length > 0) return sides[Math.floor(Math.random() * sides.length)];
-
-  return null;
-};
-
 
   const resetGame = () => {
     setBoard(initialBoard);
@@ -314,6 +265,14 @@ const getBestMove = (board, aiPlayer) => {
     socket.emit("exit", { room });
     setGameStarted(false);
     setIsExited(true);
+  };
+
+  const renderWinnerMessage = () => {
+    if (winner === "draw") return "It's a Draw!";
+    if (gameMode === "singleplayer") {
+      return winner === "X" ? "You Win! 🎉" : "You Lose!";
+    }
+    return `${winner} Wins! 🎉`;
   };
 
   return (
@@ -360,6 +319,10 @@ const getBestMove = (board, aiPlayer) => {
           : winner
           ? winner === "draw"
             ? "It's a Draw!"
+            : gameMode === "singleplayer"
+            ? winner === "X"
+              ? "You Win!"
+              : "You Lose!"
             : `${winner} Wins!`
           : `Turn: ${turn}`}
       </Status>
@@ -368,7 +331,17 @@ const getBestMove = (board, aiPlayer) => {
         <p>Score - X: {score.X} | O: {score.O}</p>
       </ScoreBoard>
 
-      {winner && <Button onClick={requestRematch}>Request Rematch</Button>}
+      {winner && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h3>{renderWinnerMessage()}</h3>
+            {gameMode === "multiplayer" && <Button onClick={requestRematch}>Request Rematch</Button>}
+            <Button onClick={resetGame}>Play Again</Button>
+          </div>
+        </div>
+      )}
+
+      {gameMode === "multiplayer" && winner && <Button onClick={requestRematch}>Request Rematch</Button>}
       {gameStarted && <Button onClick={exitGame}>Exit</Button>}
       <Button onClick={resetGame}>Reset Game</Button>
     </Container>
